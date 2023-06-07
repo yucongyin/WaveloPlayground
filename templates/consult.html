@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Consult Wavelo AI assistant</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.2/socket.io.js" integrity="sha512-jMNwWSmjje4fjYut9MBGKXw5FZA6D67NHAuC9szpjbbjg51KefquNfvn4DalCbGfkcv/jHsHnPo1o47+8u4biA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+</head>
+<body>
+    <h1>Find the Best Internet Plan for You</h1>
+    <form id="consult-form">
+        <label for="area">Area:</label>
+        <input type="text" id="area" name="area" required><br><br>
+        <label for="user_input">Describe your need:</label>
+        <textarea id="user_input" name="user_input" rows="4" cols="50" required></textarea><br><br>
+        <button type="submit">Search</button>
+    </form>
+    <div id="myDiv">
+        <div class="container" id="recommendations">
+        </div>
+    </div>
+    
+    
+<script>
+    var socket = io.connect('http://' + document.domain + ':' + location.port);
+
+    document.getElementById('consult-form').onsubmit = function(e) {
+        e.preventDefault();
+        socket.emit('consult_with_gpt4', {user_input: document.getElementById('user_input').value, area: document.getElementById('area').value});
+    };
+
+    var paragraph = null;
+
+    socket.on('new_recommendation', function(word) {
+        var recommendationsDiv = document.getElementById('recommendations');
+
+        if (!paragraph) {
+            paragraph = document.createElement('p');
+            recommendationsDiv.appendChild(paragraph);
+        }
+
+        paragraph.innerHTML += word + " ";
+    });
+</script>
+    
+    
+    
+
+</body>
+</html>
+
+<style>
+#myDiv{
+  margin: 20px auto;
+  margin-top:50px;
+  width: 60%;
+  min-height:20px;
+  border:1px solid black;
+  border-radius:5px;
+  padding:5px;
+  font-family: system-ui;
+  font-weight:500;
+}
+.container{
+  padding:10px;
+  width:100%;
+  display:flex;
+  justify-content:center;
+  align-items:space-between;
+}
+.cursor {
+        display: inline-block;
+        width: 10px;
+        height: 20px;
+        background-color: #000;
+        animation: blink-animation 1s infinite;
+}
+
+@keyframes blink-animation {
+    0% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+</style>

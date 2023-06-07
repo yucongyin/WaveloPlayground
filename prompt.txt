@@ -1,0 +1,10 @@
+provide hot keywords like 3-people-household, gaming and streaming, urban area.....
+Hey, can you walk me through all the plans you have and give me a recommendation?I'm a big gamer
+continuous dialog: is there a cheaper plan 
+
+limitation: unstable response each time, based on openai server status, response could be fairly slow...
+limitation: feed data/prompt to system/user/assistant could end up in different senario
+
+opinion: AI should build trust with customer first, might not stimulate purchasing if it only generates these plans, point to think.
+
+Hey, I just need an internet plan with the speed of watching videos and surfing websites, no heavy lifting here, can you recommend the cheap plan for this matter?
