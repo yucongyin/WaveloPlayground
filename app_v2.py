@@ -82,6 +82,7 @@ def handle_message(message):
             for word in content.split():
                 socketio.emit('new_recommendation', word)
                 socketio.sleep(0)  
+    socketio.emit('recommendation_complete', {'status': 'complete'})
 
 if __name__ == '__main__':
     socketio.run(app)
