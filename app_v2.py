@@ -69,19 +69,20 @@ def handle_message(message):
         {"role": "assistant", "content": "Sure! Let me find the best plan for you."},
     ]
 
+    print(message)
+
     for response in gpt.ChatCompletion.create(
-        model="gpt-3.5-turbo",
+        model="gpt-3.5-turbo-16k-0613",
         messages=messages,
-        max_tokens=500,
+        max_tokens=600,
         n=1,
         temperature=0.8,
         stream=True,
     ):
         content = response.choices[0].get("delta", {}).get("content")
         if content is not None:
-            for word in content.split():
-                socketio.emit('new_recommendation', word)
-                socketio.sleep(0)  
+            socketio.emit('new_recommendation', content)
+            socketio.sleep(0)  
     socketio.emit('recommendation_complete', {'status': 'complete'})
 
 if __name__ == '__main__':

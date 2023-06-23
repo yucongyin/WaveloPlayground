@@ -1,5 +1,13 @@
 provide hot keywords like 3-people-household, gaming and streaming, urban area.....
+
 Hey, can you walk me through all the plans you have and give me a recommendation?I'm a big gamer
+ok, now could you recommend a cheap plan to fulfill the least internet need?
+Hey, i know nothing about internet, I just use it to read news and stream movies.
+
+features: superfast, latest gpt model, product catalog integrated, almost accurate recommendation
+
+
+
 continuous dialog: is there a cheaper plan 
 
 limitation: unstable response each time, based on openai server status, response could be fairly slow...
