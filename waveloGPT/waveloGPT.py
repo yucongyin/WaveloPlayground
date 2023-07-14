@@ -12,6 +12,7 @@ from langchain.document_loaders import ConfluenceLoader
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.text_splitter import CharacterTextSplitter, TokenTextSplitter
 from langchain.indexes.vectorstore import VectorStoreIndexWrapper
+from langchain.indexes import VectorstoreIndexCreator
 import pytesseract
 
 os.environ['OPENAI_API_KEY'] = apikey
@@ -19,7 +20,6 @@ st.write("""<div><svg width="105" id="Layer_1" data-name="Layer 1" xmlns="http:/
 st.title('Wavelo GPT')
 persistence = "./waveloGPT/store/"
 embedding = OpenAIEmbeddings()
-llm = ChatOpenAI(model="gpt-3.5-turbo-16k-0613"),
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 #prompt handling
@@ -39,33 +39,44 @@ prompt_template = PromptTemplate(
 
 
 
-loader = ConfluenceLoader(url="https://wiki-tucows.atlassian.net/wiki", username="yyin@tucows.com", api_key=wikikey)
 
-documents = loader.load(
-    space_key="PCP",
-    include_attachments=True,
-    limit=100
-    )
 
-text_splitter = CharacterTextSplitter(chunk_size=6100, chunk_overlap=0)
-texts = text_splitter.split_documents(documents)
-text_splitter = TokenTextSplitter(chunk_size=1000, chunk_overlap=10, encoding_name="cl100k_base")  # This the encoding for text-embedding-ada-002
-texts = text_splitter.split_documents(texts)
+
 
 if persistence and os.path.exists(persistence):
-    print("0")
     vectordb = Chroma(persist_directory=persistence, embedding_function=embedding)
+    index = VectorStoreIndexWrapper(vectorstore=vectordb) 
 else:
-    print("1")
-    vectordb = Chroma.from_documents(documents=texts, embedding=embedding, persist_directory=persistence)
+    loader = ConfluenceLoader(url="https://wiki-tucows.atlassian.net/wiki", username="yyin@tucows.com", api_key=wikikey)
 
-index = VectorStoreIndexWrapper(vectorstore=vectordb)   
+    documents = loader.load(
+        space_key="PCP",
+        include_attachments=True,
+        limit=100
+        )
+    if persistence:
+        index = VectorstoreIndexCreator(vectorstore_kwargs={"persist_directory":"./waveloGPT/store/"}).from_documents(documents)
+    else:
+        index = VectorstoreIndexCreator().from_documents(documents)
+
+ 
 chain = RetrievalQA.from_chain_type(
-  llm=ChatOpenAI(model="gpt-3.5-turbo"),
+  llm=ChatOpenAI(model="gpt-3.5-turbo-16k-0613"),
   retriever=index.vectorstore.as_retriever(search_kwargs={"k": 1}),
 )
 
-chain.combine_documents_chain.llm_chain.prompt = prompt_template
+#chain.combine_documents_chain.llm_chain.prompt = prompt_template
 
-prompt = "How to Rebuild ISOS services to AWS ECR"
-print(chain.run(prompt))
+# prompt = "what do you know about Kafka Multi Tenant notes?"
+# prompt = "what do you know about ISOS, and can you walk me through everything you know?"
+# prompt = "How do you rebuild ISOS services to AWS ECR?"
+#prompt = "How do I provision nomad on EC2"
+if prompt:
+    st.write(chain.run(prompt))
+
+    with st.expander('Document Similarity Search'):
+        # Find the relevant pages
+        search = vectordb.similarity_search_with_score(prompt) 
+        # Write out the first 
+        st.write(search[0][0].page_content)
+        st.write(f"source from:{search[0][0].metadata['source']}")
