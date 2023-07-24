@@ -1,24 +1,24 @@
 import json
 from flask import Flask, render_template, request
-from flask_socketio import SocketIO
-import redis
-import os
-import openai as gpt
-import pandas
+from .env import load_env
+from .gpt import get_gpt_response
+from .socket import emit_recommendation, socketio
+from .conn import create_postgres_conn, create_redis_conn
 
-##############################################Initialization######################################################
-os.environ["OPENAI_API_KEY"] = "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"
+load_env()
 
 app = Flask(__name__)
-socketio = SocketIO(app)
-###########################################REDIS PART######################################################
-# Connect to your Redis instance
-r = redis.Redis(host="localhost", port=6379, db=0)
-#store plans from xlsx to redis
-df = pandas.read_excel('demo.xlsx')
+socketio.init_app(app)
 
-# iterate over the DataFrame rows
-for _, row in df.iterrows():
+pg_conn = create_postgres_conn()
+redis_conn = create_redis_conn()
+
+cur = pg_conn.cursor()
+cur.execute("SELECT * FROM products")
+rows = cur.fetchall()
+
+# iterate over the rows
+for row in rows:
     # construct the plan dict
     selling_points = json.dumps(row["Marketing Selling Points"])
     plan = {
@@ -36,16 +36,18 @@ for _, row in df.iterrows():
     plan_key = f"plan:{row['Product ID']}"
     market = str(row["Market"])
     for field, value in plan.items():
-        r.hset(plan_key, field, value)
-    r.sadd(f"market:{market}", plan_key)
+        redis_conn.hset(plan_key, field, value)
+    redis_conn.sadd(f"market:{market}", plan_key)
 
-###########################################Methods#################################################################
+cur.close()
+pg_conn.close()
+
+
 
 def get_all_plans(area):
-    plan_keys = r.smembers(f"market:{area}")
-    plans = [r.hgetall(key) for key in plan_keys]
+    plan_keys = redis_conn.smembers(f"market:{area}")
+    plans = [redis_conn.hgetall(key) for key in plan_keys]
     return plans
-
 
 @app.route('/')
 def index():
@@ -53,11 +55,12 @@ def index():
 
 @socketio.on('consult_with_gpt4')
 def handle_message(message):
-    gpt.api_key="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"
     area = message.get('area')
+    # Add code here to get all plans from Postgres and format them for GPT-3
     plans = get_all_plans(area)
     user_input = message.get('user_input')
     plans_text = "\n".join([f"Plan {i+1} from the {p[b'market'].decode()} market: {p[b'name'].decode()} offers {p[b'upload_speed'].decode()} Mbps upload speed and {p[b'download_speed'].decode()} Mbps download speed for ${p[b'price'].decode()} per month. Selling points: {json.loads(p[b'selling_points'].decode())}." for i, p in enumerate(plans)])
+
 
     # Prepare the messages for the chat model
     messages = [
@@ -78,23 +81,8 @@ def handle_message(message):
         {"role": "assistant", "content": "Sure! Let me find the best plan for you."},
     ]
 
-    print(message)
-
-    for response in gpt.ChatCompletion.create(
-        model="gpt-3.5-turbo-16k-0613",
-        messages=messages,
-        max_tokens=600,
-        n=1,
-        temperature=0.8,
-        stream=True,
-    ):
-        content = response.choices[0].get("delta", {}).get("content")
-        if content is not None:
-            socketio.emit('new_recommendation', content)
-            socketio.sleep(0)  
-    socketio.emit('recommendation_complete', {'status': 'complete'})
+    response = get_gpt_response(messages)
+    emit_recommendation(response)
 
 if __name__ == '__main__':
     socketio.run(app)
-#Hi, I'm a big gamer, my budget is about $90 per month, could you recommend a internet plan for me?
-#Hey, I just need some plans to fulfill minimum internet needs, could you recommend one?
