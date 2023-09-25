@@ -1,40 +1,40 @@
 import json
-from flask import Flask, render_template, request
-from .env import load_env
-from .gpt import get_gpt_response
-from .socket import emit_recommendation, socketio
-from .conn import create_postgres_conn, create_redis_conn
-
+from flask import render_template, request
+from env import load_env
+from gpt import get_gpt_response
+from app_socket import emit_recommendation
+from conn import create_postgres_conn, create_redis_conn
+from psycopg2.extras import DictCursor
+from app import app, socketio
 load_env()
 
-app = Flask(__name__)
+
 socketio.init_app(app)
 
 pg_conn = create_postgres_conn()
 redis_conn = create_redis_conn()
 
-cur = pg_conn.cursor()
-cur.execute("SELECT * FROM products")
+cur = pg_conn.cursor(cursor_factory=DictCursor)
+cur.execute('SELECT "NAME", "IS_ACTIVE", "TYPE", "RATE_RECUR_PRICE", "MARKET_NAME", "UPLOAD_SPEED", "DOWNLOAD_SPEED", "MARKETING_SELLING_POINTS", "ID" FROM products')
 rows = cur.fetchall()
 
 # iterate over the rows
 for row in rows:
-    # construct the plan dict
-    selling_points = json.dumps(row["Marketing Selling Points"])
+    selling_points = json.dumps(row["MARKETING_SELLING_POINTS"])
     plan = {
-        "name": str(row["Product Name"]),
-        "active": str(row["Active"]),
-        "type": str(row["Product Type"]),
-        "price": str(row["Price"]),
-        "market": str(row["Market"]),
-        "upload_speed": str(row["Upload Speed"]),
-        "download_speed": str(row["Download Speed"]),
+        "name": str(row["NAME"]),
+        "active": str(row["IS_ACTIVE"]),
+        "type": str(row["TYPE"]),
+        "price": str(row["RATE_RECUR_PRICE"]),
+        "market": str(row["MARKET_NAME"]),
+        "upload_speed": str(row["UPLOAD_SPEED"]),
+        "download_speed": str(row["DOWNLOAD_SPEED"]),
         "selling_points": selling_points
     }
 
     # store the plan in Redis
-    plan_key = f"plan:{row['Product ID']}"
-    market = str(row["Market"])
+    plan_key = f"plan:{row['ID']}"
+    market = str(row["MARKET_NAME"])
     for field, value in plan.items():
         redis_conn.hset(plan_key, field, value)
     redis_conn.sadd(f"market:{market}", plan_key)
@@ -85,4 +85,4 @@ def handle_message(message):
     emit_recommendation(response)
 
 if __name__ == '__main__':
-    socketio.run(app)
+    socketio.run(app, host='0.0.0.0', port=15001,)

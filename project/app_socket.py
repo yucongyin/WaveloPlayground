@@ -1,6 +1,6 @@
-from flask_socketio import SocketIO
+from app import socketio
 
-socketio = SocketIO()
+
 
 def emit_recommendation(response):
     for resp in response:
