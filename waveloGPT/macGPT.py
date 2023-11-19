@@ -39,7 +39,7 @@ embedding = OpenAIEmbeddings()
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 
-vectordb = Chroma(persist_directory=persistence, embedding_function=embedding)
+
 
 # File uploader
 up_file = st.file_uploader("Upload your File")
@@ -68,6 +68,8 @@ if up_file:
 
     if documents:
         index = VectorstoreIndexCreator().from_documents(documents)
+        vectordb = Chroma(persist_directory=persistence, embedding_function=embedding)
+        index = VectorStoreIndexWrapper(vectorstore=vectordb) 
     else:
         raise ValueError("The file is not supported.")
 
@@ -105,5 +107,5 @@ if up_file and prompt:
         search = vectordb.similarity_search_with_score(prompt) 
         print(search)
         # Write out the first 
-        # st.write(search[0][0].page_content)
-        # st.write(f"source from:{search[0][0].metadata['source']}")
+        st.write(search[0][0].page_content)
+        st.write(f"source from:{search[0][0].metadata['source']}")
