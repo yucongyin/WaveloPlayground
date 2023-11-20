@@ -18,6 +18,7 @@ from langchain.indexes.vectorstore import VectorStoreIndexWrapper
 from langchain.indexes import VectorstoreIndexCreator
 from langchain.docstore.document import Document
 
+
 """
 File Loaders
 """
@@ -67,13 +68,16 @@ if up_file:
         documents = Docx2txtLoader(target_path).load()
 
     if documents:
+
         index = VectorstoreIndexCreator().from_documents(documents)
-        vectordb = Chroma(persist_directory=persistence, embedding_function=embedding)
-        index = VectorStoreIndexWrapper(vectorstore=vectordb) 
+        # vectordb = Chroma.from_documents(documents=documents, embedding=embedding)
+        # print("done vectorizing")
+        # index = VectorStoreIndexWrapper(vectorstore=vectordb) 
     else:
         raise ValueError("The file is not supported.")
 
-
+vectordb = Chroma(persist_directory=os.path.join("./waveloGPT/loader", str(datetime.date.today())), embedding_function=embedding)
+index = VectorStoreIndexWrapper(vectorstore=vectordb)
 #prompt handling
 prompt = st.text_input('Plug in your prompt here') 
 prompt_template = PromptTemplate(
@@ -94,7 +98,7 @@ prompt_template = PromptTemplate(
 # prompt = "How do you rebuild ISOS services to AWS ECR?"
 #prompt = "How do I provision nomad on EC2"
 
-if up_file and prompt:
+if prompt:
     chain = RetrievalQA.from_chain_type(
         llm=ChatOpenAI(model="gpt-3.5-turbo-16k-0613"),
         retriever=index.vectorstore.as_retriever(search_kwargs={"k": 1}),
@@ -105,7 +109,7 @@ if up_file and prompt:
     with st.expander('Document Similarity Search'):
         # Find the relevant pages
         search = vectordb.similarity_search_with_score(prompt) 
-        print(search)
+        print("search is",search)
         # Write out the first 
-        st.write(search[0][0].page_content)
-        st.write(f"source from:{search[0][0].metadata['source']}")
+        # st.write(search[0][0].page_content)
+        # st.write(f"source from:{search[0][0].metadata['source']}")
