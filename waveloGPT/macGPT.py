@@ -69,9 +69,6 @@ if uploaded_file:
         vectordb = Chroma.from_documents(docs, embedding)
         index = VectorStoreIndexWrapper(vectorstore=vectordb)
 
-else:
-    raise ValueError("The file is not supported.")
-
 # prompt handling
 prompt = st.text_input("Plug in your prompt here")
 prompt_template = PromptTemplate(
