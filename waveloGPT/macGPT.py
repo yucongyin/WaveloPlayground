@@ -100,7 +100,6 @@ if prompt:
     with st.expander("Document Similarity Search"):
         # Find the relevant pages
         search = vectordb.similarity_search_with_score(prompt)
-        print("search is", search)
         # Write out the first
         st.write(search[0][0].page_content)
         st.write(f"source from:{search[0][0].metadata['source']}")
