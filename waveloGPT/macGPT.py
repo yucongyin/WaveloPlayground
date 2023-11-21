@@ -10,14 +10,9 @@ from PIL import Image
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
-from langchain.vectorstores import Chroma
-from langchain.chains import LLMChain, SequentialChain
-from langchain.memory import ConversationBufferMemory
+from langchain.vectorstores import FAISS
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.indexes.vectorstore import VectorStoreIndexWrapper
-from langchain.indexes import VectorstoreIndexCreator
-from langchain.docstore.document import Document
-
 
 """
 File Loaders
@@ -40,34 +35,41 @@ embedding = OpenAIEmbeddings()
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 
-# File uploader
-uploaded_file = st.file_uploader("Upload your File")
-if uploaded_file:
-    target_dir = os.path.join("./waveloGPT/loader", str(datetime.date.today()))
-    os.makedirs(target_dir, exist_ok=True)
-    target_name = uploaded_file.name
-    target_path = os.path.join(target_dir, target_name)
+# Text Spliter
+splited_text = []
+text_splitter = CharacterTextSplitter(chunk_size=5000, chunk_overlap=0)
 
-    with open(target_path, "wb") as f:
-        f.write(uploaded_file.getvalue())
+# File Uploader
+documents = None
+uploaded_files = st.file_uploader("Upload your File", accept_multiple_files=True)
 
-    documents = None
-    if uploaded_file.type.endswith("plain"):
-        documents = TextLoader(target_path).load()
-    elif uploaded_file.type.endswith("json"):
-        documents = JSONLoader(
-            file_path=target_path, jq_schema=".", text_content=False
-        ).load()
-    elif uploaded_file.type.endswith("pdf"):
-        documents = PyPDFLoader(target_path).load()
-    elif uploaded_file.type.endswith("wordprocessingml.document"):
-        documents = Docx2txtLoader(target_path).load()
+for uploaded_file in uploaded_files:
+    if uploaded_file:
+        target_dir = os.path.join("./waveloGPT/loader", str(datetime.date.today()))
+        os.makedirs(target_dir, exist_ok=True)
+        target_name = uploaded_file.name
+        target_path = os.path.join(target_dir, target_name)
 
-    if documents:
-        text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
-        docs = text_splitter.split_documents(documents)
-        vectordb = Chroma.from_documents(docs, embedding)
-        index = VectorStoreIndexWrapper(vectorstore=vectordb)
+        with open(target_path, "wb") as f:
+            f.write(uploaded_file.getvalue())
+
+        if uploaded_file.type.endswith("plain"):
+            documents = TextLoader(target_path).load()
+        elif uploaded_file.type.endswith("json"):
+            documents = JSONLoader(
+                file_path=target_path, jq_schema=".", text_content=False
+            ).load()
+        elif uploaded_file.type.endswith("pdf"):
+            documents = PyPDFLoader(target_path).load()
+        elif uploaded_file.type.endswith("wordprocessingml.document"):
+            documents = Docx2txtLoader(target_path).load()
+
+        if documents:
+            splited_text += text_splitter.split_documents(documents)
+
+if splited_text:
+    vectordb = FAISS.from_documents(splited_text, embedding)
+    index = VectorStoreIndexWrapper(vectorstore=vectordb)
 
 # prompt handling
 prompt = st.text_input("Plug in your prompt here")
@@ -83,23 +85,18 @@ prompt_template = PromptTemplate(
     """,
 )
 
-# chain.combine_documents_chain.llm_chain.prompt = prompt_template
-# prompt = "what do you know about Kafka Multi Tenant notes?"
-# prompt = "what do you know about ISOS, and can you walk me through everything you know?"
-# prompt = "How do you rebuild ISOS services to AWS ECR?"
-# prompt = "How do I provision nomad on EC2"
-
-if prompt:
+if prompt and documents:
     chain = RetrievalQA.from_chain_type(
         llm=ChatOpenAI(model="gpt-3.5-turbo-16k-0613"),
         retriever=index.vectorstore.as_retriever(search_kwargs={"k": 1}),
     )
-
-    st.write(chain.run(prompt))
+    result = chain.run(prompt)
+    st.write(result)
 
     with st.expander("Document Similarity Search"):
         # Find the relevant pages
         search = vectordb.similarity_search_with_score(prompt)
-        # Write out the first
+        search.sort(key=lambda x: (x[1]))
+
         st.write(search[0][0].page_content)
         st.write(f"source from:{search[0][0].metadata['source']}")
