@@ -54,7 +54,7 @@ for uploaded_file in uploaded_files:
             f.write(uploaded_file.getvalue())
 
         if uploaded_file.type.endswith("plain"):
-            documents = TextLoader(target_path).load()
+            documents = TextLoader(file_path=target_path,autodetect_encoding=True).load()
         elif uploaded_file.type.endswith("json"):
             documents = JSONLoader(
                 file_path=target_path, jq_schema=".", text_content=False
