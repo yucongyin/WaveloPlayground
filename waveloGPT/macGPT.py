@@ -25,7 +25,7 @@ from langchain.text_splitter import CharacterTextSplitter
 
 
 os.environ["OPENAI_API_KEY"] = apikey
-image = Image.open("./waveloGPT/assets/maclogo.png")
+image = Image.open("assets/maclogo.png")
 image = image.resize((600, 400))
 
 st.image(image, caption="mcmaster university")
