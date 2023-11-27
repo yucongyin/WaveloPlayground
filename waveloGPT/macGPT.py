@@ -40,7 +40,7 @@ splited_text = []
 text_splitter = CharacterTextSplitter(chunk_size=5000, chunk_overlap=0)
 
 # File Uploader
-documents = None
+documents = []
 uploaded_files = st.file_uploader("Upload your File", accept_multiple_files=True)
 
 for uploaded_file in uploaded_files:
@@ -54,21 +54,23 @@ for uploaded_file in uploaded_files:
             f.write(uploaded_file.getvalue())
 
         if uploaded_file.type.endswith("plain"):
-            documents = TextLoader(file_path=target_path,autodetect_encoding=True).load()
+            documents+=TextLoader(file_path=target_path,autodetect_encoding=True).load()
         elif uploaded_file.type.endswith("json"):
-            documents = JSONLoader(
+            documents+=JSONLoader(
                 file_path=target_path, jq_schema=".", text_content=False
             ).load()
         elif uploaded_file.type.endswith("pdf"):
-            documents = PyPDFLoader(target_path).load()
+            documents+=PyPDFLoader(target_path).load()
         elif uploaded_file.type.endswith("wordprocessingml.document"):
-            documents = Docx2txtLoader(target_path).load()
+            documents+=Docx2txtLoader(target_path).load()
 
-        if documents:
-            splited_text += text_splitter.split_documents(documents)
 
-if splited_text:
-    vectordb = FAISS.from_documents(splited_text, embedding)
+# if splited_text:
+#     vectordb = Chroma.from_documents(splited_text, embedding)
+#     index = VectorStoreIndexWrapper(vectorstore=vectordb)
+if documents:
+    # splited_text += text_splitter.split_documents(documents)
+    vectordb = FAISS.from_documents(documents, embedding)
     index = VectorStoreIndexWrapper(vectorstore=vectordb)
 
 # prompt handling
