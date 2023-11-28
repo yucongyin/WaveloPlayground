@@ -1,4 +1,5 @@
 pyproject.toml
+docx2txt
 aioboto3==11.3.0
 aiobotocore
 aiohttp==3.8.4
