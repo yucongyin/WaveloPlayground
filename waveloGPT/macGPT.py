@@ -1,87 +1,104 @@
-import os 
-from creds import apikey
+import os
+import datetime
+import pytesseract
+import streamlit as st
+import json
 
-import streamlit as st 
+from creds import apikey
+from PIL import Image
+
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
-from langchain.vectorstores import Chroma
-from langchain.chains import LLMChain, SequentialChain 
-from langchain.memory import ConversationBufferMemory
-from langchain.document_loaders import DirectoryLoader
-from langchain.document_loaders import TextLoader
+from langchain.vectorstores import FAISS
 from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.text_splitter import CharacterTextSplitter, TokenTextSplitter
 from langchain.indexes.vectorstore import VectorStoreIndexWrapper
-from langchain.indexes import VectorstoreIndexCreator
-import pytesseract
-from PIL import Image
+
+"""
+File Loaders
+"""
+from langchain.document_loaders import TextLoader
+from langchain.document_loaders.pdf import PyPDFLoader
+from langchain.document_loaders.word_document import Docx2txtLoader
+from langchain.document_loaders.json_loader import JSONLoader
+from langchain.text_splitter import CharacterTextSplitter
 
 
-
-os.environ['OPENAI_API_KEY'] = apikey
-image = Image.open('./waveloGPT/assets/maclogo.png')
+os.environ["OPENAI_API_KEY"] = apikey
+image = Image.open("assets/maclogo.png")
 image = image.resize((600, 400))
-st.image(image, caption='mcmaster university')
-st.title('McMaster GPT')
-persistence = "./waveloGPT/store/"
-embedding = OpenAIEmbeddings()
-pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
-#prompt handling
-prompt = st.text_input('Plug in your prompt here') 
+st.image(image, caption="mcmaster university")
+st.title("McMaster GPT")
+persistence = "./waveloGPT/store"
+embedding = OpenAIEmbeddings()
+pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+
+
+# Text Spliter
+splited_text = []
+text_splitter = CharacterTextSplitter(chunk_size=5000, chunk_overlap=0)
+
+# File Uploader
+documents = []
+uploaded_files = st.file_uploader("Upload your File", accept_multiple_files=True)
+
+for uploaded_file in uploaded_files:
+    if uploaded_file:
+        target_dir = os.path.join("./waveloGPT/loader", str(datetime.date.today()))
+        os.makedirs(target_dir, exist_ok=True)
+        target_name = uploaded_file.name
+        target_path = os.path.join(target_dir, target_name)
+
+        with open(target_path, "wb") as f:
+            f.write(uploaded_file.getvalue())
+
+        if uploaded_file.type.endswith("plain"):
+            documents+=TextLoader(file_path=target_path,autodetect_encoding=True).load()
+        elif uploaded_file.type.endswith("json"):
+            documents+=JSONLoader(
+                file_path=target_path, jq_schema=".", text_content=False
+            ).load()
+        elif uploaded_file.type.endswith("pdf"):
+            documents+=PyPDFLoader(target_path).load()
+        elif uploaded_file.type.endswith("wordprocessingml.document"):
+            documents+=Docx2txtLoader(target_path).load()
+
+
+# if splited_text:
+#     vectordb = Chroma.from_documents(splited_text, embedding)
+#     index = VectorStoreIndexWrapper(vectorstore=vectordb)
+if documents:
+    # splited_text += text_splitter.split_documents(documents)
+    vectordb = FAISS.from_documents(documents, embedding)
+    index = VectorStoreIndexWrapper(vectorstore=vectordb)
+
+# prompt handling
+prompt = st.text_input("Plug in your prompt here")
 prompt_template = PromptTemplate(
-    input_variables = ["question"], 
-    template= """
+    input_variables=["question"],
+    template="""
     You are a chatbot answering questions. Answer the question at the end. 
     If you don't know the answer, say that you don't know,
     don't try to make up an answer.
 
     Question: {question}
     Helpful Answer:
-    """
+    """,
 )
 
+if prompt and documents:
+    chain = RetrievalQA.from_chain_type(
+        llm=ChatOpenAI(model="gpt-3.5-turbo-16k-0613"),
+        retriever=index.vectorstore.as_retriever(search_kwargs={"k": 1}),
+    )
+    result = chain.run(prompt)
+    st.write(result)
 
-
-
-
-
-
-
-if persistence and os.path.exists(persistence):
-    vectordb = Chroma(persist_directory=persistence, embedding_function=embedding)
-    index = VectorStoreIndexWrapper(vectorstore=vectordb) 
-else:
-    text_loader_kwargs={'autodetect_encoding': True}
-    loader = DirectoryLoader('./waveloGPT/loader', glob="**/*.txt",loader_cls=TextLoader,loader_kwargs=text_loader_kwargs)
-
-    documents = loader.load()
-    if persistence:
-        index = VectorstoreIndexCreator(vectorstore_kwargs={"persist_directory":"./waveloGPT/store/"}).from_documents(documents)
-    else:
-        index = VectorstoreIndexCreator().from_documents(documents)
-    vectordb = Chroma(persist_directory=persistence, embedding_function=embedding)
-    index = VectorStoreIndexWrapper(vectorstore=vectordb) 
-
- 
-chain = RetrievalQA.from_chain_type(
-  llm=ChatOpenAI(model="gpt-3.5-turbo-16k-0613"),
-  retriever=index.vectorstore.as_retriever(search_kwargs={"k": 1}),
-)
-
-#chain.combine_documents_chain.llm_chain.prompt = prompt_template
-
-# prompt = "what do you know about Kafka Multi Tenant notes?"
-# prompt = "what do you know about ISOS, and can you walk me through everything you know?"
-# prompt = "How do you rebuild ISOS services to AWS ECR?"
-#prompt = "How do I provision nomad on EC2"
-if prompt:
-    st.write(chain.run(prompt))
-
-    with st.expander('Document Similarity Search'):
+    with st.expander("Document Similarity Search"):
         # Find the relevant pages
-        search = vectordb.similarity_search_with_score(prompt) 
-        # Write out the first 
+        search = vectordb.similarity_search_with_score(prompt)
+        search.sort(key=lambda x: (x[1]))
+
         st.write(search[0][0].page_content)
         st.write(f"source from:{search[0][0].metadata['source']}")
