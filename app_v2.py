@@ -57,7 +57,7 @@ def handle_message(message):
     area = message.get('area')
     plans = get_all_plans(area)
     user_input = message.get('user_input')
-    plans_text = "\n".join([f"Plan {i+1}: {p[b'name'].decode()} offers {p[b'upload_speed'].decode()} Mbps upload speed and {p[b'download_speed'].decode()} Mbps download speed for ${p[b'price'].decode()} per month. Selling points: {json.loads(p[b'selling_points'].decode())}." for i, p in enumerate(plans)])
+    plans_text = "\n".join([f"Plan {i+1} from the {p[b'market'].decode()} market: {p[b'name'].decode()} offers {p[b'upload_speed'].decode()} Mbps upload speed and {p[b'download_speed'].decode()} Mbps download speed for ${p[b'price'].decode()} per month. Selling points: {json.loads(p[b'selling_points'].decode())}." for i, p in enumerate(plans)])
 
     # Prepare the messages for the chat model
     messages = [
@@ -66,22 +66,35 @@ def handle_message(message):
         {"role": "user", "content": f"Given the following internet plans:\n{plans_text}"},
         {"role": "user", "content": user_input},
         {"role": "user", "content": "Please be friendly and talk to me like a person, don't just give me a list of recommendations"},
+        {"role": "user", "content": 
+         '''Your recomended internet plan should be in the following format:
+         In [market_name], the following plan best serves your requirements
+            Plan name: XXXXX
+            Feature 1: XXXXX
+            Feature 2: xxxxx
+            Feature 3: xxxxx
+            Short description of why you recommend it.
+         '''},
         {"role": "assistant", "content": "Sure! Let me find the best plan for you."},
     ]
 
+    print(message)
+
     for response in gpt.ChatCompletion.create(
-        model="gpt-3.5-turbo",
+        model="gpt-3.5-turbo-16k-0613",
         messages=messages,
-        max_tokens=500,
+        max_tokens=600,
         n=1,
         temperature=0.8,
         stream=True,
     ):
         content = response.choices[0].get("delta", {}).get("content")
         if content is not None:
-            for word in content.split():
-                socketio.emit('new_recommendation', word)
-                socketio.sleep(0)  
+            socketio.emit('new_recommendation', content)
+            socketio.sleep(0)  
+    socketio.emit('recommendation_complete', {'status': 'complete'})
 
 if __name__ == '__main__':
     socketio.run(app)
+#Hi, I'm a big gamer, my budget is about $90 per month, could you recommend a internet plan for me?
+#Hey, I just need some plans to fulfill minimum internet needs, could you recommend one?
